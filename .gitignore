@@ -1,0 +1,13 @@
+*.asv
+*.sbproj
+*.bak
+*.dat
+*.mat
+*.fig
+papers/
+Figures/
+*.xlsx
+*.mp4
+*.pdf
+*.csv
+*.pptx
