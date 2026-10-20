@@ -1,9 +1,9 @@
 clear; 
 warning off; parfevalOnAll(@warning,0,'off','all');
-load("New Analysis-sept/Lesion_Waterfall_8mpk_all.mat"); 
-load("New Analysis-sept/PSA_Waterfall_8mpk_all.mat"); 
-load("New Analysis-sept/Mean_spider_clinical_8mpk_all.mat");
-load('New Analysis-sept/PFS_Table_8mpk_all.mat');
+load("New Analysis-sept/Lesion_Waterfall_6mpk_all.mat"); 
+load("New Analysis-sept/PSA_Waterfall_6mpk_all.mat"); 
+load("New Analysis-sept/Mean_spider_clinical_6mpk_all.mat");
+load('New Analysis-sept/PFS_Table_6mpk_all.mat');
 
 Sim_Params = struct(); % struct to pass all crucial choice related parameters into the simulating function
 
@@ -246,9 +246,10 @@ fprintf('Took %.1f seconds to simulate.\n', time_taken);
 
 
 plot_waterfall(Simulation_Results, Lesion_Waterfall, PSA_Waterfall); 
+%%
 plot_pfs(Simulation_Results, PFS_Table);                             % [OPTIONAL] Lines marked as optional can be commented without any issue
-plot_spider(Simulation_Results, Sim_Params, median(Lesion_Waterfall.TTR, 'omitnan'));              % [OPTIONAL]
-plot_psa_spider(Simulation_Results, Sim_Params);            % [OPTIONAL]
+% plot_spider(Simulation_Results, Sim_Params, median(Lesion_Waterfall.TTR, 'omitnan'));              % [OPTIONAL]
+% plot_psa_spider(Simulation_Results, Sim_Params);            % [OPTIONAL]
 % plot_swimmer(Simulation_Results);                         % [OPTIONAL]
 % plot_observables(Simulation_Results, Sim_Params)          % [OPTIONAL] 
 % summarize_patient_response(Simulation_Results);           % [OPTIONAL]
@@ -1093,6 +1094,16 @@ function plot_pfs(Simulation_Results, PFS_Table)
     % Calculate the survivor function and confidence bounds
     [f, x, flo, fup] = ecdf(pfs_times, 'Censoring', censoring_flags, 'Function', 'survivor', 'Alpha', 0.05, 'Bounds', 'on');
     
+    % Dynamically find the maximum follow-up time
+    max_time = max(pfs_times);
+    
+    % Append if the max time is greater than the last event time
+    if x(end) < max_time
+        x = [x; max_time];
+        f = [f; f(end)];
+        flo = [flo; flo(end)];
+        fup = [fup; fup(end)];
+    end
     % Ensure bounds start at 1 and end consistently
     flo(1) = 1;
     fup(1) = 1;

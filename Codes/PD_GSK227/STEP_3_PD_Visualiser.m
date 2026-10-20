@@ -1827,7 +1827,15 @@ function Plot_PFS_for_all_seed(Sim_Params, Dose, pfs_for_all_seed, plot_95_CI, p
             [f, x, ~, ~] = ecdf(pfs_times, 'Censoring', censoring_flags, ...
                                     'Function', 'survivor', 'Alpha', 0.05, ...
                                     'Bounds', 'on');
+            % Dynamically find the maximum follow-up time
+            max_time = max(pfs_times);
             
+            % Append if the max time is greater than the last event time
+            if x(end) < max_time
+                x = [x; max_time];
+                f = [f; f(end)];
+            end
+
             new_row = interp1(x, f, time_array, 'previous', 'extrap');
             new_row_table = array2table(new_row, 'VariableNames', f_seeds.Properties.VariableNames);
             f_seeds = [f_seeds; new_row_table];    %#ok<AGROW>
