@@ -15,10 +15,9 @@ load('Sim_Params.mat');                                    % Loads the calibrate
 proj = sbioloadproject("../../GSK227_CRPC.sbproj");     % This path has to be changed as per the location of the model
 model = proj.m1; 
 
-for k = [27 33]
 seed = 1:100;                                    % This is the RNG Seed value to which you are simulating
-Sim_Params.Dose = [6 8 10 12];        % in mg/kg 
-Sim_Params.N_VP = k;%height(PSA_Waterfall.BOR);     % Number of patients to simulate is same as that in the data
+Sim_Params.Dose = [6,8,10,12];        % in mg/kg 
+Sim_Params.N_VP = 30;     % Number of patients to simulate is same as that in the data
 Sim_Params.variability = 1; 
 Sim_Params.StopTime = 340;                       % Simulating for 1 year
 Sim_Params.Time_Sim = 0:1:Sim_Params.StopTime;    % for each of the days, time point where the simulations will be carried out
@@ -44,7 +43,6 @@ model_params = {
     'W'                  70     0;
     'Switch_TumorComp'   1      0;
     'Switch_Tox'         1      0;
-    'Cp'                 0.2439     0.1033;
     };
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -175,19 +173,20 @@ for d = 1:length(Dose)
     % plot_mean_spider_for_all_seed(Mean_spider_clinical, mean_spider, min_spider, max_spider, median(Lesion_Waterfall.TTR, 'omitnan'), ttr_for_all_seed);
     % %%
     % plot_mean_psa_spider_for_all_seed(Median_PSA_spider_clinical, mean_psa_spider, min_psa_spider, max_psa_spider);
-    % %%
-    Plot_waterfall_for_all_seed(psa_waterfall_for_all_seed, tumor_waterfall_for_all_seed, plot_data_on_waterfall, Lesion_Waterfall, PSA_Waterfall, orr_for_all_seed, psa50_for_all_seed, Sim_Params);
-    % %%
+    %%
+    % Plot_waterfall_for_all_seed(psa_waterfall_for_all_seed, tumor_waterfall_for_all_seed, plot_data_on_waterfall, Lesion_Waterfall, PSA_Waterfall, orr_for_all_seed, psa50_for_all_seed, Sim_Params);
+    %%
     % Plot_waterfall_for_all_seed1(psa_waterfall_for_all_seed, tumor_waterfall_for_all_seed, plot_data_on_waterfall, Lesion_Waterfall, PSA_Waterfall);
     % Plot_PFS_for_all_seed(Sim_Params, Dose(d), pfs_for_all_seed, true);
-    drawnow;
+    % drawnow;
+    % analyze_binomial_p(Sim_Params.N_VP,psa50_for_all_seed);
+
 end
 
 
 Plot_dose_response(Tumor_response_alldose);
 Plot_dose_response(PSA_response_alldose);
 
-end
 
 
 
@@ -639,7 +638,7 @@ function [ORR, PSA50, Sim_Waterfall] = calculate_bor(Sim_SLD, PatientList)
         end
     end
     ORR = n_ORR/nPatients;
-    PSA50 = n_PSA50; % count of patients
+    PSA50 = n_PSA50/nPatients; % count of patients
 end
  
 function is_responder = evaluate_psa50_response(subj)
@@ -2133,3 +2132,59 @@ function CI95 = boot95CI(array_to_sample_from,prctile)
     end
     CI95 = [quantile(arr,0.025);quantile(arr,0.975)];
 end
+ 
+function [mean_p, median_p, ci_mean, ci_median, pi_p] = analyze_binomial_p(N, p_array)
+    % Ensure the array is a column vector
+    p_array = p_array(:);
+    n_samples = length(p_array); % Should be 100 based on your prompt
+    
+    % 1. Mean
+    mean_p = mean(p_array);
+    
+    % 2. Median
+    median_p = median(p_array);
+    
+    % --- Confidence Intervals ---
+    % Calculate critical t-value for 95% CI (alpha = 0.05, two-tailed)
+    alpha = 0.05;
+    t_crit = tinv(1 - alpha/2, n_samples - 1);
+    z_crit = norminv(1 - alpha/2); % ~1.96 for large N / theoretical formulas
+    
+    % 3. 95% CI of the Mean
+    % Formula: Mean +/- t * (Standard Deviation / sqrt(n))
+    std_p = std(p_array);
+    standard_error_mean = std_p / sqrt(n_samples);
+    margin_error_mean = t_crit * standard_error_mean;
+    ci_mean = [mean_p - margin_error_mean, mean_p + margin_error_mean];
+    
+    % 4. 95% CI of the Median
+    % Using the asymptotic standard error of the median for normal-ish data:
+    % SE_median ~= 1.2533 * SE_mean
+    standard_error_median = 1.2533 * standard_error_mean;
+    margin_error_median = t_crit * standard_error_median;
+    ci_median = [median_p - margin_error_median, median_p + margin_error_median];
+    
+    % 5. 95% Prediction Interval of a new p-value
+    % Since each p is from a binomial distribution out of N, the variance 
+    % of a new p-value (X/N) is expected to be p(1-p)/N. 
+    % We use the mean_p as our best estimate for the true probability.
+    expected_variance = (mean_p * (1 - mean_p)) / N;
+    
+    % The prediction interval combines the uncertainty of our mean estimate 
+    % AND the natural binomial variance of a new observation.
+    % PI = Mean +/- z * sqrt( SE_mean^2 + Binomial_Variance )
+    pi_margin = z_crit * sqrt(standard_error_mean^2 + expected_variance);
+    
+    % Bound the PI between 0 and 1 since p cannot physically exceed these bounds
+    lower_pi = max(0, mean_p - pi_margin);
+    upper_pi = min(1, mean_p + pi_margin);
+    pi_p = [lower_pi, upper_pi];
+    
+    % --- Display Results (Optional, for convenience) ---
+    fprintf('Mean of p: %.4f\n', mean_p);
+    fprintf('Median of p: %.4f\n', median_p);
+    fprintf('95%% CI for Mean: [%.4f, %.4f]\n', ci_mean(1), ci_mean(2));
+    fprintf('95%% CI for Median: [%.4f, %.4f]\n', ci_median(1), ci_median(2));
+    fprintf('95%% Prediction Interval for a new p: [%.4f, %.4f]\n', pi_p(1), pi_p(2));
+end
+ 
